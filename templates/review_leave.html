@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Review Leave Application - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4>Review Leave Application</h4>
+                <a href="/leave_status" class="btn btn-light">Back to List</a>
+            </div>
+            <div class="card-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5>Application Details</h5>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Student:</strong> {{ student_name }} (ID: {{ student_id }})</p>
+                                <p><strong>From Date:</strong> {{ leave_info.from_date }}</p>
+                                <p><strong>To Date:</strong> {{ leave_info.to_date }}</p>
+                                <p><strong>Reason:</strong> {{ leave_info.reason }}</p>
+                                <p><strong>Submitted On:</strong> {{ leave_info.submitted_on }}</p>
+                                <p>
+                                    <strong>Current Status:</strong>
+                                    {% if leave_info.status == 'pending' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% elif leave_info.status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% endif %}
+                                </p>
+                                {% if leave_info.status != 'pending' and leave_info.reviewed_on %}
+                                    <p><strong>Reviewed On:</strong> {{ leave_info.reviewed_on }}</p>
+                                {% endif %}
+                                {% if leave_info.comments %}
+                                    <p><strong>Comments:</strong> {{ leave_info.comments }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5>Leave Letter</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="ratio ratio-16x9">
+                                    <iframe src="/static/leave_letters/{{ leave_info.file }}" allowfullscreen></iframe>
+                                </div>
+                                <div class="d-grid gap-2 mt-3">
+                                    <a href="/static/leave_letters/{{ leave_info.file }}" target="_blank" class="btn btn-info">
+                                        <i class="bi bi-file-earmark-pdf"></i> Open in New Tab
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if leave_info.status == 'pending' %}
+                <form action="/review_leave/{{ student_id }}/{{ leave_id }}" method="post">
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Decision</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="">Select decision</option>
+                            <option value="approved">Approve</option>
+                            <option value="rejected">Reject</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="comments" class="form-label">Comments</label>
+                        <textarea class="form-control" id="comments" name="comments" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Submit Decision</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

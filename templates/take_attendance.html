@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Take Attendance - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>Take Attendance</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info" id="info-alert">
+                    <p>The system will take 4 snapshots at 10-second intervals. Each snapshot counts for 25% of attendance.</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="mb-3 text-center">
+                            <img src="{{ url_for('video_feed') }}" width="100%" alt="Video Feed">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div id="status-panel" class="mb-3 p-3 bg-light">
+                            <h5>Status</h5>
+                            <p id="status-message">Ready to take attendance</p>
+                            <div id="progress-container" style="display:none;">
+                                <p>Taking snapshots: <span id="snapshot-count">0</span>/4</p>
+                                <div class="progress">
+                                    <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button id="start-btn" class="btn btn-success">Start Attendance</button>
+                        </div>
+                        
+                        <div id="result-panel" class="mt-4" style="display:none;">
+                            <h5>Attendance Results</h5>
+                            <div id="results-container"></div>
+                            <div class="d-grid gap-2 mt-3">
+                                <a id="report-link" href="/attendance_report" class="btn btn-info">View Full Report</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const startBtn = document.getElementById('start-btn');
+    const statusMessage = document.getElementById('status-message');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const snapshotCount = document.getElementById('snapshot-count');
+    const resultPanel = document.getElementById('result-panel');
+    const resultsContainer = document.getElementById('results-container');
+    const infoAlert = document.getElementById('info-alert');
+    const reportLink = document.getElementById('report-link');
+    
+    startBtn.addEventListener('click', async function() {
+        // Disable the button
+        startBtn.disabled = true;
+        startBtn.textContent = 'Taking Attendance...';
+        statusMessage.textContent = 'Initializing attendance process...';
+        progressContainer.style.display = 'block';
+        infoAlert.style.display = 'none';
+        
+        try {
+            // Start the attendance process
+            const response = await fetch('/start_attendance', {
+                method: 'POST',
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to start attendance process');
+            }
+            
+            // Poll for status updates
+            const checkStatus = async () => {
+                const statusResponse = await fetch('/attendance_status');
+                const statusData = await statusResponse.json();
+                
+                if (statusData.in_progress) {
+                    // If still in progress, update progress based on snapshots taken
+                    if (statusData.results && statusData.results.snapshots) {
+                        const count = statusData.results.snapshots.length;
+                        snapshotCount.textContent = count;
+                        progressBar.style.width = (count * 25) + '%';
+                        statusMessage.textContent = `Taking snapshot ${count}/4...`;
+                    }
+                    
+                    // Check again in 1 second
+                    setTimeout(checkStatus, 1000);
+                } else if (statusData.results) {
+                    // Process is complete
+                    snapshotCount.textContent = "4";
+                    progressBar.style.width = '100%';
+                    statusMessage.textContent = 'Attendance completed!';
+                    
+                    // Display results
+                    displayResults(statusData.results);
+                } else {
+                    // Something went wrong
+                    statusMessage.textContent = 'Error: No results returned';
+                    startBtn.disabled = false;
+                    startBtn.textContent = 'Try Again';
+                }
+            };
+            
+            // Start checking status
+            setTimeout(checkStatus, 1000);
+            
+        } catch (err) {
+            statusMessage.textContent = 'Error: ' + err.message;
+            startBtn.disabled = false;
+            startBtn.textContent = 'Try Again';
+        }
+    });
+    
+    function displayResults(results) {
+        resultPanel.style.display = 'block';
+        
+        // Calculate total present
+        const totalPresent = Object.keys(results.student_attendance).filter(
+            id => results.student_attendance[id].percentage > 0
+        ).length;
+        
+        let html = `
+            <div class="alert alert-success">
+                <p>Date: ${results.date} at ${results.time}</p>
+                <p>Total Present: ${totalPresent} out of ${results.total_registered} students</p>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Present In</th>
+                            <th>Attendance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        // Add each student's attendance
+        for (const [id, data] of Object.entries(results.student_attendance)) {
+            html += `
+                <tr>
+                    <td>${id}</td>
+                    <td>${data.name}</td>
+                    <td>${data.present_count}/4 snapshots</td>
+                    <td>${data.percentage}%</td>
+                </tr>
+            `;
+        }
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        resultsContainer.innerHTML = html;
+        
+        // Update the report link to show this session's data
+        reportLink.href = `/attendance_report?date=${results.date}&session=${results.time}`;
+        
+        // Reset the start button
+        startBtn.disabled = false;
+        startBtn.textContent = 'Take New Attendance';
+    }
+</script>
+{% endblock %}

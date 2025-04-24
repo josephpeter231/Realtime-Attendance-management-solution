@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Home - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 text-center mb-4">
+        <h1>Welcome to the Attendance Management System</h1>
+        <p class="lead">A facial recognition-based attendance tracking system</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Register Students</h5>
+                <p class="card-text">Add new students to the system with facial recognition</p>
+                <a href="/register" class="btn btn-primary">Register Now</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Take Attendance</h5>
+                <p class="card-text">Capture attendance using facial recognition</p>
+                <a href="/take_attendance" class="btn btn-success">Take Attendance</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">View Reports</h5>
+                <p class="card-text">View and analyze attendance reports</p>
+                <a href="/attendance_report" class="btn btn-info">View Reports</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">How it works</h5>
+                <ol>
+                    <li>Register students with their details and facial data</li>
+                    <li>Take attendance by capturing 4 snapshots at 10-second intervals</li>
+                    <li>Each snapshot contributes 25% to a student's attendance</li>
+                    <li>View detailed attendance reports</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

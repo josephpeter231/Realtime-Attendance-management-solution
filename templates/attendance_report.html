@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Attendance Report - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>Attendance Report</h4>
+            </div>
+            <div class="card-body">
+                <form method="get" action="/attendance_report" class="mb-4">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-auto">
+                            <label for="date" class="form-label">Date:</label>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="date" id="date" class="form-select" onchange="this.form.submit()">
+                                <option value="">Select a date</option>
+                                {% for date in dates %}
+                                <option value="{{ date }}" {% if date == selected_date %}selected{% endif %}>{{ date }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        {% if sessions %}
+                        <div class="col-auto">
+                            <label for="session" class="form-label">Session:</label>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="session" id="session" class="form-select" onchange="this.form.submit()">
+                                <option value="">All sessions</option>
+                                {% for session in sessions %}
+                                <option value="{{ session }}" {% if session == selected_session %}selected{% endif %}>{{ session }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                    </div>
+                </form>
+                
+                {% if not dates %}
+                <div class="alert alert-info">
+                    <p>No attendance records found. <a href="/take_attendance" class="alert-link">Take attendance</a> to see reports.</p>
+                </div>
+                {% elif not selected_date %}
+                <div class="alert alert-info">
+                    <p>Select a date to view attendance records.</p>
+                </div>
+                {% elif not sessions %}
+                <div class="alert alert-info">
+                    <p>No attendance sessions found for the selected date.</p>
+                </div>
+                {% elif session_data %}
+                <div class="mt-4">
+                    <h5>Attendance on {{ selected_date }} at {{ selected_session }}</h5>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Summary</h6>
+                                    <p><strong>Date:</strong> {{ session_data.date }}</p>
+                                    <p><strong>Time:</strong> {{ session_data.time }}</p>
+                                    <p><strong>Total Students:</strong> {{ session_data.total_registered }}</p>
+                                    <p><strong>Present:</strong> 
+                                        {{ (session_data.student_attendance.values() | selectattr("percentage", "gt", 0) | list | length) }} 
+                                        ({{ ((session_data.student_attendance.values() | selectattr("percentage", "gt", 0) | list | length) / session_data.total_registered * 100) | round(1) if session_data.total_registered > 0 else 0 }}%)
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Snapshots</h6>
+                                    <div class="row">
+                                        {% for snapshot in session_data.snapshots %}
+                                        <div class="col-3 text-center">
+                                            <a href="/static/attendance_data/{{ snapshot.filename }}" target="_blank">
+                                                <img src="/static/attendance_data/{{ snapshot.filename }}" class="img-thumbnail" style="height: 80px;">
+                                            </a>
+                                            <div class="small">{{ loop.index }}/4</div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Roll Number</th>
+                                    <th>Present In</th>
+                                    <th>Attendance</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student_id, data in session_data.student_attendance.items() %}
+                                <tr>
+                                    <td>{{ student_id }}</td>
+                                    <td>{{ data.name }}</td>
+                                    <td>{{ students[student_id].roll_no if student_id in students }}</td>
+                                    <td>{{ data.present_count }}/4 snapshots</td>
+                                    <td>{{ data.percentage }}%</td>
+                                    <td>
+                                        {% if data.percentage >= 75 %}
+                                        <span class="badge bg-success">Present</span>
+                                        {% elif data.percentage >= 25 %}
+                                        <span class="badge bg-warning">Partial</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">Absent</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% elif selected_session %}
+                <div class="alert alert-info">
+                    <p>No data found for the selected session.</p>
+                </div>
+                {% else %}
+                <div class="mt-4">
+                    <h5>Sessions on {{ selected_date }}</h5>
+                    <ul class="list-group">
+                        {% for session in sessions %}
+                        <li class="list-group-item">
+                            <a href="/attendance_report?date={{ selected_date }}&session={{ session }}">{{ session }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

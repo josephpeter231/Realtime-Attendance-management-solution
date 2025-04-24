@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Capture Face - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>Capture Face - {{ student_name }}</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <p>Please position your face in the center of the frame and click "Capture Face"</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="text-center">
+                            <video id="video" width="100%" autoplay></video>
+                            <canvas id="canvas" style="display: none;"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div id="status-panel" class="mb-3 p-3 bg-light">
+                            <h5>Status</h5>
+                            <p id="status-message">Camera initializing...</p>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button id="capture-btn" class="btn btn-primary" disabled>Capture Face</button>
+                            <button id="retake-btn" class="btn btn-warning" style="display: none;">Retake</button>
+                            <button id="save-btn" class="btn btn-success" style="display: none;">Save & Continue</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="student-id" value="{{ student_id }}">
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const videoElement = document.getElementById('video');
+    const canvasElement = document.getElementById('canvas');
+    const captureBtn = document.getElementById('capture-btn');
+    const retakeBtn = document.getElementById('retake-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const statusMessage = document.getElementById('status-message');
+    const studentId = document.getElementById('student-id').value;
+    let capturedImage = null;
+    
+    // Initialize the webcam
+    async function initCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            videoElement.srcObject = stream;
+            captureBtn.disabled = false;
+            statusMessage.textContent = 'Camera ready. Position your face and click "Capture Face"';
+        } catch (err) {
+            statusMessage.textContent = 'Error accessing camera: ' + err.message;
+        }
+    }
+    
+    // Capture image from video
+    captureBtn.addEventListener('click', function() {
+        const context = canvasElement.getContext('2d');
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+        context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+        
+        capturedImage = canvasElement.toDataURL('image/jpeg');
+        
+        // Show the captured image
+        videoElement.style.display = 'none';
+        canvasElement.style.display = 'block';
+        
+        // Update buttons
+        captureBtn.style.display = 'none';
+        retakeBtn.style.display = 'block';
+        saveBtn.style.display = 'block';
+        
+        statusMessage.textContent = 'Face captured. Save or retake.';
+    });
+    
+    // Retake photo
+    retakeBtn.addEventListener('click', function() {
+        videoElement.style.display = 'block';
+        canvasElement.style.display = 'none';
+        
+        captureBtn.style.display = 'block';
+        retakeBtn.style.display = 'none';
+        saveBtn.style.display = 'none';
+        
+        statusMessage.textContent = 'Position your face and click "Capture Face"';
+        capturedImage = null;
+    });
+    
+    // Save the captured image
+    saveBtn.addEventListener('click', async function() {
+        if (!capturedImage) {
+            statusMessage.textContent = 'No image captured. Please try again.';
+            return;
+        }
+        
+        statusMessage.textContent = 'Saving image...';
+        saveBtn.disabled = true;
+        retakeBtn.disabled = true;
+        
+        try {
+            const response = await fetch('/capture_face', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    image: capturedImage
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                statusMessage.textContent = 'Face registered successfully!';
+                setTimeout(() => {
+                    window.location.href = '/students';
+                }, 1500);
+            } else {
+                statusMessage.textContent = 'Error: ' + result.message;
+                saveBtn.disabled = false;
+                retakeBtn.disabled = false;
+            }
+        } catch (err) {
+            statusMessage.textContent = 'Error saving image: ' + err.message;
+            saveBtn.disabled = false;
+            retakeBtn.disabled = false;
+        }
+    });
+    
+    // Initialize
+    initCamera();
+</script>
+{% endblock %}

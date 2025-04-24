@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Apply for Leave - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>Apply for Leave</h4>
+            </div>
+            <div class="card-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <form action="/leave" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="student_id" class="form-label">Select Student</label>
+                        <select class="form-select" id="student_id" name="student_id" required>
+                            <option value="">Select a student</option>
+                            {% for id, student in students.items() %}
+                                <option value="{{ id }}">{{ student.name }} (ID: {{ id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="from_date" class="form-label">From Date</label>
+                        <input type="date" class="form-control" id="from_date" name="from_date" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="to_date" class="form-label">To Date</label>
+                        <input type="date" class="form-control" id="to_date" name="to_date" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Reason for Leave</label>
+                        <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="leave_letter" class="form-label">Upload Leave Letter (PDF only)</label>
+                        <input class="form-control" type="file" id="leave_letter" name="leave_letter" accept=".pdf" required>
+                        <div class="form-text">Please upload a signed leave letter in PDF format.</div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Submit Leave Application</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Form validation for dates
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const fromDate = new Date(document.getElementById('from_date').value);
+        const toDate = new Date(document.getElementById('to_date').value);
+        
+        if (toDate < fromDate) {
+            e.preventDefault();
+            alert('To Date cannot be earlier than From Date');
+        }
+    });
+</script>
+{% endblock %}
