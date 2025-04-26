@@ -630,12 +630,12 @@ def student_report(student_id):
         elif percentage >= 70:
             subject_attendance[subject]["status"] = "Need Improvement"
             subject_attendance[subject]["icon"] = "⚠"
-            sessions_needed = math.ceil((0.75 * total - present) / 0.75)
+            sessions_needed = math.ceil(max(0, (0.75 * total - present) / 0.75))
             subject_attendance[subject]["advice"] = f"Attend {sessions_needed} more sessions"
         else:
             subject_attendance[subject]["status"] = "At Risk"
             subject_attendance[subject]["icon"] = "❗"
-            sessions_needed = math.ceil((0.75 * total - present) / 0.75)
+            sessions_needed = math.ceil(max(0, (0.75 * total - present) / 0.75))
             subject_attendance[subject]["advice"] = f"Attend {sessions_needed} more sessions urgently"
     
     # Generate summary and advice
