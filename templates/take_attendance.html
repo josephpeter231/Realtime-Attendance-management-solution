@@ -20,6 +20,18 @@
                         </div>
                     </div>
                     <div class="col-md-4">
+                        <form id="attendance-form">
+                            <div class="mb-3">
+                                <label for="subject" class="form-label">Select Subject</label>
+                                <select class="form-select" id="subject" name="subject" required>
+                                    <option value="">Select a subject</option>
+                                    {% for subject in subjects %}
+                                        <option value="{{ subject }}" {% if subject == current_subject %}selected{% endif %}>{{ subject }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </form>
+                        
                         <div id="status-panel" class="mb-3 p-3 bg-light">
                             <h5>Status</h5>
                             <p id="status-message">Ready to take attendance</p>
@@ -61,8 +73,15 @@
     const resultsContainer = document.getElementById('results-container');
     const infoAlert = document.getElementById('info-alert');
     const reportLink = document.getElementById('report-link');
+    const subjectSelect = document.getElementById('subject');
     
     startBtn.addEventListener('click', async function() {
+        // Check if subject is selected
+        if (subjectSelect.value === '') {
+            alert('Please select a subject before starting attendance');
+            return;
+        }
+        
         // Disable the button
         startBtn.disabled = true;
         startBtn.textContent = 'Taking Attendance...';
@@ -74,6 +93,10 @@
             // Start the attendance process
             const response = await fetch('/start_attendance', {
                 method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `subject=${subjectSelect.value}`
             });
             
             if (!response.ok) {
@@ -133,6 +156,7 @@
         let html = `
             <div class="alert alert-success">
                 <p>Date: ${results.date} at ${results.time}</p>
+                <p>Subject: <strong>${results.subject || 'Unknown'}</strong></p>
                 <p>Total Present: ${totalPresent} out of ${results.total_registered} students</p>
             </div>
             <div class="table-responsive">
@@ -169,7 +193,7 @@
         resultsContainer.innerHTML = html;
         
         // Update the report link to show this session's data
-        reportLink.href = `/attendance_report?date=${results.date}&session=${results.time}`;
+        reportLink.href = `/attendance_report?date=${results.date}&subject=${results.subject}&session=${results.time}`;
         
         // Reset the start button
         startBtn.disabled = false;

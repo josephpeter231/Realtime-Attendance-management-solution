@@ -23,15 +23,29 @@
                             </select>
                         </div>
                         
-                        {% if sessions %}
+                        {% if subjects %}
                         <div class="col-auto">
-                            <label for="session" class="form-label">Session:</label>
+                            <label for="session" class="form-label">Subject:</label>
                         </div>
                         <div class="col-md-3">
                             <select name="session" id="session" class="form-select" onchange="this.form.submit()">
-                                <option value="">All sessions</option>
-                                {% for session in sessions %}
-                                <option value="{{ session }}" {% if session == selected_session %}selected{% endif %}>{{ session }}</option>
+                                <option value="">All subjects</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject }}" {% if subject == selected_subject %}selected{% endif %}>{{ subject }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                        
+                        {% if sessions %}
+                        <div class="col-auto">
+                            <label for="time" class="form-label">Time:</label>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="time" id="time" class="form-select" onchange="this.form.submit()">
+                                <option value="">All times</option>
+                                {% for time in sessions %}
+                                <option value="{{ time }}" {% if time == selected_time %}selected{% endif %}>{{ time }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -47,13 +61,39 @@
                 <div class="alert alert-info">
                     <p>Select a date to view attendance records.</p>
                 </div>
+                {% elif not subjects %}
+                <div class="alert alert-info">
+                    <p>No subjects found for the selected date.</p>
+                </div>
+                {% elif not selected_subject %}
+                <div class="mt-4">
+                    <h5>Subjects on {{ selected_date }}</h5>
+                    <div class="list-group">
+                        {% for subject in subjects %}
+                        <a href="{{ url_for('attendance_report', date=selected_date, session=subject) }}" class="list-group-item list-group-item-action">
+                            {{ subject }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
                 {% elif not sessions %}
                 <div class="alert alert-info">
-                    <p>No attendance sessions found for the selected date.</p>
+                    <p>No attendance sessions found for the selected subject.</p>
+                </div>
+                {% elif not selected_time and sessions %}
+                <div class="mt-4">
+                    <h5>Sessions for {{ selected_subject }} on {{ selected_date }}</h5>
+                    <div class="list-group">
+                        {% for time in sessions %}
+                        <a href="{{ url_for('attendance_report', date=selected_date, session=selected_subject, time=time) }}" class="list-group-item list-group-item-action">
+                            {{ time }}
+                        </a>
+                        {% endfor %}
+                    </div>
                 </div>
                 {% elif session_data %}
                 <div class="mt-4">
-                    <h5>Attendance on {{ selected_date }} at {{ selected_session }}</h5>
+                    <h5>Attendance for {{ selected_subject }} on {{ selected_date }} at {{ selected_time }}</h5>
                     
                     <div class="row mb-4">
                         <div class="col-md-6">
@@ -62,11 +102,14 @@
                                     <h6 class="card-title">Summary</h6>
                                     <p><strong>Date:</strong> {{ session_data.date }}</p>
                                     <p><strong>Time:</strong> {{ session_data.time }}</p>
+                                    <p><strong>Subject:</strong> {{ session_data.subject }}</p>
                                     <p><strong>Total Students:</strong> {{ session_data.total_registered }}</p>
+                                    {% if session_data.student_attendance %}
                                     <p><strong>Present:</strong> 
                                         {{ (session_data.student_attendance.values() | selectattr("percentage", "gt", 0) | list | length) }} 
                                         ({{ ((session_data.student_attendance.values() | selectattr("percentage", "gt", 0) | list | length) / session_data.total_registered * 100) | round(1) if session_data.total_registered > 0 else 0 }}%)
                                     </p>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -76,20 +119,27 @@
                                 <div class="card-body">
                                     <h6 class="card-title">Snapshots</h6>
                                     <div class="row">
-                                        {% for snapshot in session_data.snapshots %}
-                                        <div class="col-3 text-center">
-                                            <a href="/static/attendance_data/{{ snapshot.filename }}" target="_blank">
-                                                <img src="/static/attendance_data/{{ snapshot.filename }}" class="img-thumbnail" style="height: 80px;">
-                                            </a>
-                                            <div class="small">{{ loop.index }}/4</div>
-                                        </div>
-                                        {% endfor %}
+                                        {% if session_data.snapshots %}
+                                            {% for snapshot in session_data.snapshots %}
+                                            <div class="col-3 text-center">
+                                                <a href="/static/attendance_data/{{ snapshot.filename }}" target="_blank">
+                                                    <img src="/static/attendance_data/{{ snapshot.filename }}" class="img-thumbnail" style="height: 80px;">
+                                                </a>
+                                                <div class="small">{{ loop.index }}/4</div>
+                                            </div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="col-12">
+                                                <p class="text-muted">No snapshots available</p>
+                                            </div>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
+                    {% if session_data.student_attendance %}
                     <div class="table-responsive">
                         <table class="table table-striped">
                             <thead>
@@ -124,21 +174,15 @@
                             </tbody>
                         </table>
                     </div>
-                </div>
-                {% elif selected_session %}
-                <div class="alert alert-info">
-                    <p>No data found for the selected session.</p>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <p>No student attendance data found for this session.</p>
+                    </div>
+                    {% endif %}
                 </div>
                 {% else %}
-                <div class="mt-4">
-                    <h5>Sessions on {{ selected_date }}</h5>
-                    <ul class="list-group">
-                        {% for session in sessions %}
-                        <li class="list-group-item">
-                            <a href="/attendance_report?date={{ selected_date }}&session={{ session }}">{{ session }}</a>
-                        </li>
-                        {% endfor %}
-                    </ul>
+                <div class="alert alert-info">
+                    <p>No data found for the selected parameters.</p>
                 </div>
                 {% endif %}
             </div>
