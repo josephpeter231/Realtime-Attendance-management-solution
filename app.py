@@ -1,9 +1,10 @@
+import math
 import cv2
 import os
 import time
 import numpy as np
-from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify
+from datetime import datetime, timedelta
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, session
 import threading
 import json
 import shutil
@@ -36,6 +37,7 @@ attendance_in_progress = False
 attendance_results = {}
 current_students = {}
 attendance_data = {}
+subjects = ["DA", "IoT", "NLP", "KRR", "STM"]  # List of available subjects
 
 def load_students():
     """Load student data from files or create if not exists"""
@@ -140,7 +142,7 @@ def detect_known_faces(frame, faces):
                 print(f"Error comparing faces: {e}")
         
         # Use a threshold to determine if the face matches a known student
-        if best_match and best_score < 10000000:  # Threshold needs adjustment
+        if best_match and best_score < 10000000: 
             if best_match not in attendance["present"]:
                 attendance["present"].append(best_match)
         else:
@@ -179,12 +181,17 @@ def gen_frames():
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
-def take_attendance_snapshots():
+# Modify the take_attendance_snapshots function to accept the subject as a parameter
+def take_attendance_snapshots(subject=None):
     """Take 4 snapshots at 10-second intervals and process attendance"""
     global attendance_in_progress, attendance_results, frame
     
     if attendance_in_progress:
         return {"error": "Attendance already in progress"}
+    
+    # Use the provided subject or default to "Unknown"
+    if subject not in subjects:
+        subject = "Unknown"
     
     attendance_in_progress = True
     snapshot_count = 4
@@ -192,6 +199,7 @@ def take_attendance_snapshots():
     attendance_results = {
         "date": datetime.now().strftime("%Y-%m-%d"),
         "time": datetime.now().strftime("%H:%M:%S"),
+        "subject": subject,
         "snapshots": [],
         "student_attendance": {},
         "total_registered": len(current_students)
@@ -249,7 +257,10 @@ def take_attendance_snapshots():
     if date_key not in attendance_data:
         attendance_data[date_key] = {}
     
-    attendance_data[date_key][time_key] = attendance_results
+    if subject not in attendance_data[date_key]:
+        attendance_data[date_key][subject] = {}
+    
+    attendance_data[date_key][subject][time_key] = attendance_results
     save_attendance()
     
     attendance_in_progress = False
@@ -319,13 +330,30 @@ def students():
 
 @app.route('/take_attendance')
 def take_attendance():
-    return render_template('take_attendance.html')
+    # Store the selected subject in session if provided
+    if 'subject' in request.args:
+        session['current_subject'] = request.args.get('subject')
+    
+    return render_template('take_attendance.html', 
+                          subjects=subjects, 
+                          current_subject=session.get('current_subject'))
 
+# Modify the start_attendance route to pass the subject to the thread
 @app.route('/start_attendance', methods=['POST'])
 def start_attendance():
-    thread = threading.Thread(target=take_attendance_snapshots)
+    # Get subject from form data
+    subject = request.form.get('subject')
+    if subject not in subjects:
+        subject = "Unknown"
+    
+    # Store in session for UI consistency
+    session['current_subject'] = subject
+    
+    # Pass the subject to the thread
+    thread = threading.Thread(target=take_attendance_snapshots, args=(subject,))
     thread.start()
-    return jsonify({"success": True, "message": "Attendance process started"})
+    
+    return jsonify({"success": True, "message": "Attendance process started", "subject": subject})
 
 @app.route('/attendance_status')
 def attendance_status():
@@ -341,24 +369,45 @@ def attendance_report():
     # Get available dates
     dates = list(attendance_data.keys())
     
-    # Get sessions for selected date
-    sessions = []
+    # Get subjects for selected date
+    subjects_for_date = []
     if date in attendance_data:
-        sessions = list(attendance_data[date].keys())
+        subjects_for_date = list(attendance_data[date].keys())
     
-    # Get session data if specified
-    session_time = request.args.get('session')
+    # Get selected subject
+    selected_subject = request.args.get('session')
+    
+    # Get sessions (times) for selected date and subject
+    sessions = []
+    if date in attendance_data and selected_subject in attendance_data[date]:
+        sessions = list(attendance_data[date][selected_subject].keys())
+    
+    # Get session time if specified
+    session_time = request.args.get('time')
+    
+    # Get session data if all parameters are specified
     session_data = None
-    if date in attendance_data and session_time in attendance_data[date]:
-        session_data = attendance_data[date][session_time]
+    if (date in attendance_data and 
+        selected_subject in attendance_data[date] and 
+        session_time in attendance_data[date][selected_subject]):
+        session_data = attendance_data[date][selected_subject][session_time]
+    # If session_time not specified but only one exists, use it
+    elif (date in attendance_data and 
+          selected_subject in attendance_data[date] and
+          len(attendance_data[date][selected_subject]) == 1):
+        session_time = list(attendance_data[date][selected_subject].keys())[0]
+        session_data = attendance_data[date][selected_subject][session_time]
     
     return render_template('attendance_report.html', 
-                           dates=dates, 
-                           selected_date=date,
-                           sessions=sessions,
-                           selected_session=session_time,
-                           session_data=session_data,
-                           students=current_students)
+                         dates=dates, 
+                         selected_date=date,
+                         subjects=subjects_for_date,
+                         selected_subject=selected_subject,
+                         sessions=sessions,
+                         selected_time=session_time,
+                         session_data=session_data,
+                         all_subjects=subjects,
+                         students=current_students)
 
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
@@ -503,6 +552,107 @@ def review_leave(student_id, leave_id):
                           student_name=student_name,
                           leave_id=leave_id,
                           leave_info=leave_info)
+
+@app.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html', students=current_students)
+
+@app.route('/student_report/<student_id>')
+def student_report(student_id):
+    if student_id not in current_students:
+        flash('Student not found', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Generate report for last 15 days by default
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=15)
+    
+    # Format dates for display
+    end_date_str = end_date.strftime("%d-%m-%Y")
+    start_date_str = start_date.strftime("%d-%m-%Y")
+    
+    # Get dates within the range
+    report_dates = []
+    for date_str in attendance_data.keys():
+        try:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+            if start_date <= date_obj <= end_date:
+                report_dates.append(date_str)
+        except ValueError:
+            continue
+    
+    # Prepare report data
+    subject_attendance = {}
+    for subject in subjects:
+        subject_attendance[subject] = {
+            "total_sessions": 0,
+            "present_sessions": 0,
+            "percentage": 0
+        }
+    
+    # Calculate attendance for each subject
+    for date_str in report_dates:
+        for subject in subjects:
+            if date_str in attendance_data and subject in attendance_data[date_str]:
+                sessions = attendance_data[date_str][subject]
+                for time_key, session_data in sessions.items():
+                    subject_attendance[subject]["total_sessions"] += 1
+                    
+                    if (student_id in session_data["student_attendance"] and 
+                        session_data["student_attendance"][student_id]["percentage"] >= 75):
+                        subject_attendance[subject]["present_sessions"] += 1
+    
+    # Calculate percentages and status
+    for subject in subjects:
+        total = subject_attendance[subject]["total_sessions"]
+        present = subject_attendance[subject]["present_sessions"]
+        
+        if total > 0:
+            percentage = round((present / total) * 100)
+        else:
+            percentage = 0
+            
+        subject_attendance[subject]["percentage"] = percentage
+        
+        # Determine status and advice
+        if percentage >= 85:
+            subject_attendance[subject]["status"] = "Excellent"
+            subject_attendance[subject]["icon"] = "✅"
+            subject_attendance[subject]["advice"] = ""
+        elif percentage >= 80:
+            subject_attendance[subject]["status"] = "Good"
+            subject_attendance[subject]["icon"] = "✅"
+            subject_attendance[subject]["advice"] = ""
+        elif percentage >= 75:
+            subject_attendance[subject]["status"] = "Satisfactory"
+            subject_attendance[subject]["icon"] = "✅"
+            subject_attendance[subject]["advice"] = ""
+        elif percentage >= 70:
+            subject_attendance[subject]["status"] = "Need Improvement"
+            subject_attendance[subject]["icon"] = "⚠"
+            sessions_needed = math.ceil((0.75 * total - present) / 0.75)
+            subject_attendance[subject]["advice"] = f"Attend {sessions_needed} more sessions"
+        else:
+            subject_attendance[subject]["status"] = "At Risk"
+            subject_attendance[subject]["icon"] = "❗"
+            sessions_needed = math.ceil((0.75 * total - present) / 0.75)
+            subject_attendance[subject]["advice"] = f"Attend {sessions_needed} more sessions urgently"
+    
+    # Generate summary and advice
+    risk_subjects = [s for s in subjects if subject_attendance[s]["percentage"] < 75]
+    improvement_subjects = [s for s in subjects if 70 <= subject_attendance[s]["percentage"] < 75]
+    good_subjects = [s for s in subjects if subject_attendance[s]["percentage"] >= 75]
+    
+    return render_template('student_report.html',
+                          student=current_students[student_id],
+                          subject_attendance=subject_attendance,
+                          start_date=start_date_str,
+                          end_date=end_date_str,
+                          risk_subjects=risk_subjects,
+                          improvement_subjects=improvement_subjects,
+                          good_subjects=good_subjects,
+                          report_date=datetime.now().strftime("%d-%m-%Y"),
+                          subjects=subjects)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Student Attendance Report - {{ student.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4>Student Attendance Report</h4>
+                <div>
+                    <button onclick="printReport()" class="btn btn-light me-2">
+                        <i class="bi bi-printer"></i> Print
+                    </button>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-light">
+                        Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            <div class="card-body" id="report-content">
+                <div class="report-header text-center mb-4">
+                    <h4>Attendance Report for: {{ student.name }}</h4>
+                    <p>Duration: {{ start_date }} to {{ end_date }}</p>
+                    <hr>
+                </div>
+                
+                <div class="subject-attendance mb-4">
+                    <h5>Subject-wise Attendance:</h5>
+                    <ul class="list-group">
+                        {% for subject in subjects %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>
+                                    <strong>{{ subject }}:</strong> {{ subject_attendance[subject].percentage }}%
+                                    {% if subject_attendance[subject].icon %} {{ subject_attendance[subject].icon }} {% endif %}
+                                    <span class="ms-2 {% if subject_attendance[subject].percentage < 75 %}text-danger{% else %}text-success{% endif %}">
+                                        {{ subject_attendance[subject].status }}
+                                    </span>
+                                </span>
+                                {% if subject_attendance[subject].advice %}
+                                    <span class="badge bg-warning text-dark">
+                                        {{ subject_attendance[subject].advice }}
+                                    </span>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+                <hr>
+                
+                <div class="summary mb-4">
+                    <h5>Summary:</h5>
+                    <ul>
+                        <li>Your overall college entry attendance is 
+                            {% if risk_subjects|length == 0 %}
+                                <strong class="text-success">good</strong>.
+                            {% elif risk_subjects|length <= 2 %}
+                                <strong class="text-warning">satisfactory</strong>, but needs improvement.
+                            {% else %}
+                                <strong class="text-danger">concerning</strong> and requires immediate action.
+                            {% endif %}
+                        </li>
+                        
+                        {% if improvement_subjects %}
+                            <li>Focus more on {{ improvement_subjects|join(', ') }} subjects to maintain eligibility.</li>
+                        {% endif %}
+                        
+                        {% if risk_subjects %}
+                            <li><strong class="text-danger">Immediate action needed</strong> for {{ risk_subjects|join(', ') }} to avoid shortage risk.</li>
+                        {% endif %}
+                        
+                        {% if good_subjects %}
+                            <li>Maintain current consistency in {{ good_subjects|join(', ') }}.</li>
+                        {% endif %}
+                    </ul>
+                </div>
+                
+                <div class="advice mb-4">
+                    <h5>Final Advice:</h5>
+                    <ul>
+                        <li>Minimum 75% attendance required per subject as per regulations.</li>
+                        {% if risk_subjects %}
+                            <li>If attendance falls further, you may not be allowed for exams in {{ risk_subjects|join(', ') }} subject(s).</li>
+                        {% endif %}
+                    </ul>
+                </div>
+                
+                <div class="footer text-end">
+                    <p>Generated on: {{ report_date }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function printReport() {
+        const content = document.getElementById('report-content').innerHTML;
+        const printWindow = window.open('', '_blank');
+        
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Attendance Report - {{ student.name }}</title>
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+                    <style>
+                        body { padding: 20px; }
+                        hr { margin: 20px 0; }
+                        @media print {
+                            .no-print { display: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        ${content}
+                    </div>
+                </body>
+            </html>
+        `);
+        
+        printWindow.document.close();
+        setTimeout(() => {
+            printWindow.print();
+        }, 500);
+    }
+</script>
+{% endblock %}
